@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08080b">
+<title>SAA Tournament</title>
+<link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><b>SAA <span>TOURNAMENT</span></b><button onclick="show('admin')">ADMIN</button></header>
+<section class="hero">
+  <small>FREE FIRE MAX • SOLO</small>
+  <h1>SAA Solo Tournament</h1>
+  <p>48 Slots • 3:00 PM</p>
+  <p>Entry ₹20 • Prize Pool ₹500</p>
+  <button class="primary" onclick="show('register')">JOIN NOW</button>
+</section>
+<nav>
+<button onclick="show('home')">Home</button>
+<button onclick="show('register')">Register</button>
+<button onclick="show('leaderboard')">Leaderboard</button>
+<button onclick="show('rules')">Rules</button>
+</nav>
+<main>
+<section id="home" class="page active">
+<div class="cards"><div><b>₹500</b><small>Prize Pool</small></div><div><b>48</b><small>Slots</small></div><div><b>SOLO</b><small>Format</small></div></div>
+<div class="panel"><h2>Prize Distribution</h2><p>🥇 ₹300 &nbsp; 🥈 ₹120 &nbsp; 🥉 ₹80</p><p id="notice"></p></div>
+</section>
+<section id="register" class="page"><div class="panel"><h2>Solo Registration</h2>
+<form id="regForm"><input id="name" required placeholder="Player Name"><input id="uid" required placeholder="Free Fire UID"><input id="phone" placeholder="WhatsApp Number"><input id="utr" placeholder="Payment UTR / Transaction ID"><button class="primary">Submit Registration</button></form><p id="regMsg"></p></div></section>
+<section id="leaderboard" class="page"><div class="panel"><h2>Leaderboard</h2><div id="board"></div></div></section>
+<section id="rules" class="page"><div class="panel"><h2>Rules</h2><ul><li>Only registered solo players.</li><li>No hacks, scripts or unfair play.</li><li>Room ID/password will be posted by admin.</li><li>Results are verified by admin.</li><li>Prize payout after final verification.</li></ul><p><a target="_blank" href="https://whatsapp.com/channel/0029Vb8Z0AyF6smxmLk2bf2u">Join WhatsApp Channel</a></p></div></section>
+<section id="admin" class="page"><div class="panel"><h2>Admin Panel</h2><input id="adminPassword" type="password" placeholder="Admin password"><button class="primary" onclick="login()">Login</button><div id="adminArea" hidden><input id="roomId" placeholder="Room ID"><input id="roomPassword" placeholder="Room Password"><input id="announcement" placeholder="Announcement"><button class="primary" onclick="saveAdmin()">Save Match Info</button><h3>Players</h3><div id="players"></div><h3>Scores</h3><div id="scores"></div></div></div></section>
+</main><footer>SAA Tournament • APK-ready build</footer>
+<script src="app.js"></script>
+</body></html>
