@@ -91,6 +91,11 @@ function show(id) {
   if (id === 'admin' && adminLogged) {
     renderAdmin();
   }
+
+  // Home open होने पर room information दिखाओ
+  if (id === 'home') {
+    loadMatchInfo();
+  }
 }
 
 
@@ -123,7 +128,6 @@ document.getElementById('regForm').onsubmit = async function(e) {
     teamElement ? teamElement.value.trim() : 'solo';
 
 
-  // REQUIRED FIELDS
   if (
     !nameValue ||
     !uidValue ||
@@ -279,6 +283,9 @@ function login() {
   document.getElementById(
     'adminArea'
   ).hidden = false;
+
+  // Saved information Admin fields में भी दिखाओ
+  loadAdminFields();
 
   renderAdmin();
 }
@@ -458,43 +465,151 @@ function score(i) {
 // ===============================
 function saveAdmin() {
 
-  const roomId =
+  const roomIdElement =
     document.getElementById('roomId');
 
-  const roomPassword =
+  const roomPasswordElement =
     document.getElementById('roomPassword');
 
-  const announcement =
+  const announcementElement =
     document.getElementById('announcement');
 
+
+  const roomId =
+    roomIdElement.value.trim();
+
+  const roomPassword =
+    roomPasswordElement.value.trim();
+
+  const announcement =
+    announcementElement.value.trim();
+
+
+  // Save locally
   localStorage.setItem(
     'saa_room',
-    roomId.value
+    roomId
   );
 
   localStorage.setItem(
     'saa_room_password',
-    roomPassword.value
+    roomPassword
   );
 
   localStorage.setItem(
     'saa_notice',
-    announcement.value
+    announcement
   );
 
 
-  const notice =
-    document.getElementById('notice');
-
-  if (notice) {
-    notice.textContent =
-      announcement.value;
-  }
+  // Immediately update Home
+  loadMatchInfo();
 
 
   alert(
     'Match information saved.'
   );
+}
+
+
+// ===============================
+// LOAD MATCH INFORMATION
+// ===============================
+function loadMatchInfo() {
+
+  const roomId =
+    localStorage.getItem('saa_room') || '';
+
+  const roomPassword =
+    localStorage.getItem('saa_room_password') || '';
+
+  const announcement =
+    localStorage.getItem('saa_notice') || '';
+
+
+  // Announcement
+  const noticeElement =
+    document.getElementById('notice');
+
+  if (noticeElement) {
+
+    noticeElement.textContent =
+      announcement;
+  }
+
+
+  // Room information
+  const roomInfo =
+    document.getElementById('roomInfo');
+
+  const homeRoomId =
+    document.getElementById('homeRoomId');
+
+  const homeRoomPassword =
+    document.getElementById('homeRoomPassword');
+
+
+  if (
+    roomInfo &&
+    homeRoomId &&
+    homeRoomPassword
+  ) {
+
+    if (roomId && roomPassword) {
+
+      homeRoomId.textContent =
+        roomId;
+
+      homeRoomPassword.textContent =
+        roomPassword;
+
+      roomInfo.hidden = false;
+
+    } else {
+
+      roomInfo.hidden = true;
+
+    }
+  }
+}
+
+
+// ===============================
+// LOAD SAVED ADMIN FIELDS
+// ===============================
+function loadAdminFields() {
+
+  const roomId =
+    localStorage.getItem('saa_room') || '';
+
+  const roomPassword =
+    localStorage.getItem('saa_room_password') || '';
+
+  const announcement =
+    localStorage.getItem('saa_notice') || '';
+
+
+  const roomIdElement =
+    document.getElementById('roomId');
+
+  const roomPasswordElement =
+    document.getElementById('roomPassword');
+
+  const announcementElement =
+    document.getElementById('announcement');
+
+
+  if (roomIdElement) {
+    roomIdElement.value = roomId;
+  }
+
+  if (roomPasswordElement) {
+    roomPasswordElement.value = roomPassword;
+  }
+
+  if (announcementElement) {
+    announcementElement.value = announcement;
+  }
 }
 
 
@@ -520,21 +635,8 @@ function esc(s) {
 
 
 // ===============================
-// LOAD ANNOUNCEMENT
-// ===============================
-const savedNotice =
-  localStorage.getItem('saa_notice') || '';
-
-const noticeElement =
-  document.getElementById('notice');
-
-if (noticeElement) {
-  noticeElement.textContent =
-    savedNotice;
-}
-
-
-// ===============================
 // START
 // ===============================
+loadMatchInfo();
+
 loadPlayers();
