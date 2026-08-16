@@ -1,174 +1,540 @@
-const CONFIG={
-  entry:20,
-  prize:500,
-  upi:'shivaysharma52@ybl',
-  api:'https://script.google.com/macros/s/AKfycbw3lF5lyBedbTCpODywIQgq3nxBGkj_4Wx2iq6oqmX6fvY_P00AEVGD8rYEJhohffx2/exec'
+const CONFIG = {
+  entry: 20,
+  prize: 500,
+  upi: 'shivaysharma52@ybl',
+  api: 'https://script.google.com/macros/s/AKfycbw3lF5lyBedbTCpODywIQgq3nxBGkj_4Wx2iq6oqmX6fvY_P00AEVGD8rYEJhohffx2/exec'
 };
 
-const KEY='saa_players';
-let data=[];
-let adminLogged=false;
+const KEY = 'saa_players';
 
-async function loadPlayers(){
-  try{
-    const res=await fetch(CONFIG.api);
-    const json=await res.json();
+let data = [];
+let adminLogged = false;
 
-    if(json.success && Array.isArray(json.players)){
-      data=json.players.map(x=>({
-        name:x.Name||x.name||'',
-        uid:x.UID||x.uid||'',
-        team:x.Team||x.team||'',
-        phone:x.phone||x.Phone||'',
-        status:x.Status||x.status||'Approved',
-        kills:+(x.Kills||x.kills||0),
-        points:+(x.Points||x.points||0)
+
+// ===============================
+// LOAD PLAYERS FROM GOOGLE SHEET
+// ===============================
+async function loadPlayers() {
+  try {
+    const res = await fetch(CONFIG.api);
+    const json = await res.json();
+
+    if (json.success && Array.isArray(json.players)) {
+
+      data = json.players.map(x => ({
+        name: x.Name || x.name || '',
+        uid: x.UID || x.uid || '',
+        team: x.Team || x.team || 'solo',
+        phone: x.phone || x.Phone || '',
+        utr: x.UTR || x.utr || '',
+        status: x.Status || x.status || 'Pending',
+        kills: Number(x.Kills || x.kills || 0),
+        points: Number(x.Points || x.points || 0)
       }));
 
-      localStorage.setItem(KEY,JSON.stringify(data));
+      localStorage.setItem(KEY, JSON.stringify(data));
+
       renderBoard();
+
+      if (adminLogged) {
+        renderAdmin();
+      }
+
     }
-  }catch(err){
-    console.log('API error:',err);
-    data=JSON.parse(localStorage.getItem(KEY)||'[]');
+
+  } catch (err) {
+
+    console.log('API error:', err);
+
+    data = JSON.parse(
+      localStorage.getItem(KEY) || '[]'
+    );
+
+    renderBoard();
+
+    if (adminLogged) {
+      renderAdmin();
+    }
+  }
+}
+
+
+// ===============================
+// LOCAL SAVE
+// ===============================
+function save() {
+  localStorage.setItem(
+    KEY,
+    JSON.stringify(data)
+  );
+}
+
+
+// ===============================
+// PAGE SWITCH
+// ===============================
+function show(id) {
+
+  document
+    .querySelectorAll('.page')
+    .forEach(x => x.classList.remove('active'));
+
+  const page = document.getElementById(id);
+
+  if (page) {
+    page.classList.add('active');
+  }
+
+  if (id === 'leaderboard') {
     renderBoard();
   }
+
+  if (id === 'admin' && adminLogged) {
+    renderAdmin();
+  }
 }
 
-function save(){
-  localStorage.setItem(KEY,JSON.stringify(data));
-}
 
-function show(id){
-  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  if(id==='leaderboard')renderBoard();
-  if(id==='admin'&&adminLogged)renderAdmin();
-}
+// ===============================
+// REGISTRATION
+// ===============================
+document.getElementById('regForm').onsubmit = async function(e) {
 
-document.getElementById('regForm').onsubmit=async e=>{
   e.preventDefault();
 
-  const nameValue=document.getElementById('name').value.trim();
-  const uidValue=document.getElementById('uid').value.trim();
-  const phoneValue=document.getElementById('phone').value.trim();
-  const teamEl=document.getElementById('team');
-  const teamValue=teamEl?teamEl.value.trim():'solo';
+  const nameValue =
+    document.getElementById('name').value.trim();
 
-  if(!nameValue||!uidValue||!phoneValue){
-    regMsg.textContent='Please fill all required fields.';
+  const uidValue =
+    document.getElementById('uid').value.trim();
+
+  const phoneValue =
+    document.getElementById('phone').value.trim();
+
+  const utrElement =
+    document.getElementById('utr');
+
+  const utrValue =
+    utrElement ? utrElement.value.trim() : '';
+
+  const teamElement =
+    document.getElementById('team');
+
+  const teamValue =
+    teamElement ? teamElement.value.trim() : 'solo';
+
+
+  // REQUIRED FIELDS
+  if (!nameValue || !uidValue || !phoneValue) {
+
+    document.getElementById('regMsg').textContent =
+      'Please fill Player Name, UID and WhatsApp Number.';
+
     return;
   }
 
-  regMsg.textContent='Submitting registration...';
 
-  try{
-    await fetch(CONFIG.api,{
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({
-        name:nameValue,
-        uid:uidValue,
-        phone:phoneValue,
-        team:teamValue
+  document.getElementById('regMsg').textContent =
+    'Submitting registration...';
+
+
+  try {
+
+    await fetch(CONFIG.api, {
+
+      method: 'POST',
+
+      headers: {
+        'Content-Type':
+          'text/plain;charset=utf-8'
+      },
+
+      body: JSON.stringify({
+
+        name: nameValue,
+
+        uid: uidValue,
+
+        phone: phoneValue,
+
+        team: teamValue,
+
+        utr: utrValue
+
       })
+
     });
 
-    regMsg.textContent='Registration submitted successfully!';
+
+    document.getElementById('regMsg').textContent =
+      'Registration submitted successfully!';
+
     e.target.reset();
+
     await loadPlayers();
 
-  }catch(err){
-    regMsg.textContent='Registration failed. Please try again.';
+
+  } catch (err) {
+
     console.log(err);
+
+    document.getElementById('regMsg').textContent =
+      'Registration failed. Please try again.';
+
   }
+
 };
 
-function renderBoard(){
-  let p=[...data].sort((a,b)=>b.points-a.points||b.kills-a.kills);
 
-  board.innerHTML=p.length?
-  '<table><tr><th>#</th><th>Player</th><th>Kills</th><th>Points</th></tr>'+
-  p.map((x,i)=>
-  `<tr><td>${i+1}</td><td>${esc(x.name)}</td><td>${x.kills}</td><td>${x.points}</td></tr>`
-  ).join('')+
-  '</table>':
-  '<p class="muted">No players registered.</p>';
-}
+// ===============================
+// LEADERBOARD
+// ===============================
+function renderBoard() {
 
-function login(){
-  if(adminPassword.value!=='LOCAL_ADMIN_ONLY'){
-    alert('For security, configure the real admin secret through the backend before deployment.');
+  const boardElement =
+    document.getElementById('board');
+
+  if (!boardElement) return;
+
+
+  const players = [...data]
+    .filter(x =>
+      x.status !== 'Deleted'
+    )
+    .sort((a, b) =>
+      b.points - a.points ||
+      b.kills - a.kills
+    );
+
+
+  if (!players.length) {
+
+    boardElement.innerHTML =
+      '<p class="muted">No players registered.</p>';
+
     return;
   }
 
-  adminLogged=true;
-  adminArea.hidden=false;
+
+  boardElement.innerHTML =
+
+    '<table>' +
+
+    '<tr>' +
+    '<th>#</th>' +
+    '<th>Player</th>' +
+    '<th>Kills</th>' +
+    '<th>Points</th>' +
+    '</tr>' +
+
+    players.map((x, i) =>
+
+      '<tr>' +
+
+      '<td>' +
+      (i + 1) +
+      '</td>' +
+
+      '<td>' +
+      esc(x.name) +
+      '</td>' +
+
+      '<td>' +
+      x.kills +
+      '</td>' +
+
+      '<td>' +
+      x.points +
+      '</td>' +
+
+      '</tr>'
+
+    ).join('') +
+
+    '</table>';
+}
+
+
+// ===============================
+// ADMIN LOGIN
+// ===============================
+function login() {
+
+  const password =
+    document.getElementById('adminPassword').value;
+
+
+  if (password !== 'LOCAL_ADMIN_ONLY') {
+
+    alert(
+      'Wrong admin password.'
+    );
+
+    return;
+  }
+
+
+  adminLogged = true;
+
+  document.getElementById(
+    'adminArea'
+  ).hidden = false;
+
   renderAdmin();
 }
 
-function renderAdmin(){
-  players.innerHTML=data.map((x,i)=>
-  `<div class="panel">
-  <b>${esc(x.name)}</b><br>
-  UID: ${esc(x.uid)}<br>
-  Team: ${esc(x.team||'-')}<br>
-  Phone: ${esc(x.phone||'-')}<br>
-  Status: ${esc(x.status||'-')}<br>
-  <button onclick="approve(${i})">Approve</button>
-  <button onclick="del(${i})">Delete</button>
-  </div>`
-  ).join('')||'<p class="muted">No players.</p>';
 
-  scores.innerHTML=data.map((x,i)=>
-  `<div class="panel">
-  <b>${esc(x.name)}</b>
-  <input id="k${i}" type="number" value="${x.kills}">
-  <input id="p${i}" type="number" value="${x.points}">
-  <button class="primary" onclick="score(${i})">Save Score</button>
-  </div>`
+// ===============================
+// ADMIN PANEL
+// ===============================
+function renderAdmin() {
+
+  const playersElement =
+    document.getElementById('players');
+
+  const scoresElement =
+    document.getElementById('scores');
+
+
+  if (!playersElement || !scoresElement) {
+    return;
+  }
+
+
+  playersElement.innerHTML = data.map(
+    (x, i) =>
+
+      `<div class="panel">
+
+        <b>${esc(x.name)}</b><br>
+
+        UID:
+        ${esc(x.uid)}<br>
+
+        Team:
+        ${esc(x.team || 'solo')}<br>
+
+        Phone:
+        ${esc(x.phone || '-')}<br>
+
+        UTR:
+        ${esc(x.utr || '-')}<br>
+
+        Status:
+        ${esc(x.status || 'Pending')}<br><br>
+
+        <button onclick="approve(${i})">
+          Approve
+        </button>
+
+        <button onclick="del(${i})">
+          Delete
+        </button>
+
+      </div>`
+
+  ).join('') ||
+
+    '<p class="muted">No players.</p>';
+
+
+  scoresElement.innerHTML = data.map(
+    (x, i) =>
+
+      `<div class="panel">
+
+        <b>${esc(x.name)}</b>
+
+        <input
+          id="k${i}"
+          type="number"
+          min="0"
+          value="${x.kills}"
+          placeholder="Kills"
+        >
+
+        <input
+          id="p${i}"
+          type="number"
+          min="0"
+          value="${x.points}"
+          placeholder="Points"
+        >
+
+        <button
+          class="primary"
+          onclick="score(${i})">
+          Save Score
+        </button>
+
+      </div>`
+
   ).join('');
 }
 
-function approve(i){
-  data[i].status='Approved';
+
+// ===============================
+// APPROVE
+// ===============================
+function approve(i) {
+
+  if (!data[i]) return;
+
+  data[i].status = 'Approved';
+
   save();
+
   renderAdmin();
+
+  renderBoard();
+
+  alert(
+    data[i].name +
+    ' approved successfully.'
+  );
 }
 
-function del(i){
-  data.splice(i,1);
+
+// ===============================
+// DELETE
+// ===============================
+function del(i) {
+
+  if (!data[i]) return;
+
+  const name = data[i].name;
+
+  if (!confirm(
+    'Delete ' + name + '?'
+  )) {
+    return;
+  }
+
+
+  data.splice(i, 1);
+
   save();
+
   renderAdmin();
+
   renderBoard();
 }
 
-function score(i){
-  data[i].kills=+document.getElementById('k'+i).value;
-  data[i].points=+document.getElementById('p'+i).value;
+
+// ===============================
+// SAVE SCORE
+// ===============================
+function score(i) {
+
+  if (!data[i]) return;
+
+
+  const killsElement =
+    document.getElementById('k' + i);
+
+  const pointsElement =
+    document.getElementById('p' + i);
+
+
+  data[i].kills =
+    Number(killsElement.value || 0);
+
+  data[i].points =
+    Number(pointsElement.value || 0);
+
+
   save();
+
   renderAdmin();
+
   renderBoard();
+
+  alert('Score saved.');
 }
 
-function saveAdmin(){
-  localStorage.setItem('saa_room',roomId.value);
-  localStorage.setItem('saa_room_password',roomPassword.value);
-  localStorage.setItem('saa_notice',announcement.value);
-  notice.textContent=announcement.value;
-  alert('Saved locally.');
+
+// ===============================
+// SAVE ROOM / ANNOUNCEMENT
+// ===============================
+function saveAdmin() {
+
+  const roomId =
+    document.getElementById('roomId');
+
+  const roomPassword =
+    document.getElementById('roomPassword');
+
+  const announcement =
+    document.getElementById('announcement');
+
+  localStorage.setItem(
+    'saa_room',
+    roomId.value
+  );
+
+  localStorage.setItem(
+    'saa_room_password',
+    roomPassword.value
+  );
+
+  localStorage.setItem(
+    'saa_notice',
+    announcement.value
+  );
+
+
+  const notice =
+    document.getElementById('notice');
+
+  if (notice) {
+    notice.textContent =
+      announcement.value;
+  }
+
+
+  alert(
+    'Match information saved.'
+  );
 }
 
-function esc(s){
-  return String(s||'').replace(/[&<>"']/g,m=>({
-    '&':'&amp;',
-    '<':'&lt;',
-    '>':'&gt;',
-    '"':'&quot;',
-    "'":'&#039;'
-  }[m]));
+
+// ===============================
+// SECURITY / HTML ESCAPE
+// ===============================
+function esc(s) {
+
+  return String(s || '')
+    .replace(/[&<>"']/g, function(m) {
+
+      return {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+
+      }[m];
+
+    });
 }
 
-notice.textContent=localStorage.getItem('saa_notice')||'';
 
+// ===============================
+// LOAD ANNOUNCEMENT
+// ===============================
+const savedNotice =
+  localStorage.getItem('saa_notice') || '';
+
+const noticeElement =
+  document.getElementById('notice');
+
+if (noticeElement) {
+  noticeElement.textContent =
+    savedNotice;
+}
+
+
+// ===============================
+// START
+// ===============================
 loadPlayers();
