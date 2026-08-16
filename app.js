@@ -149,6 +149,7 @@ document.getElementById('regForm').onsubmit = async function(e) {
   try {
 
     await fetch(CONFIG.api, {
+      mode: 'no-cors',
 
       method: 'POST',
 
