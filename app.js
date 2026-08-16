@@ -1,5 +1,5 @@
 /* =========================================
-   SAA TOURNAMENT - APP.JS
+   SAA TOURNAMENT - FINAL APP.JS
    ========================================= */
 
 const CONFIG = {
@@ -7,22 +7,22 @@ const CONFIG = {
   prize: 500,
   upi: "shivaysharma52@ybl",
 
-  // APNA CURRENT GOOGLE APPS SCRIPT URL YAHAN PASTE KARO
-  api: "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE",
+  // GOOGLE APPS SCRIPT WEB APP URL
+  api: "https://script.google.com/macros/s/AKfycbwtBcOrcXx_gyaUWDd5lPECVQdB893M--4j7gPbuiV7TRlSBkmLkww6cephpl5H1agy/exec",
 
-  // Admin password
+  // ADMIN PASSWORD
   adminPassword: "123456789"
 };
 
-const KEY = "saa_players";
+const PLAYERS_KEY = "saa_players";
 const MATCH_KEY = "saa_match_info";
 
-let data = [];
+let players = [];
 let adminLogged = false;
 
 
 /* =========================================
-   HELPERS
+   BASIC HELPERS
    ========================================= */
 
 function esc(value) {
@@ -35,17 +35,8 @@ function esc(value) {
 }
 
 
-function getValue(id, fallback = "") {
-  const el = document.getElementById(id);
-  return el ? el.value.trim() : fallback;
-}
-
-
-function setValue(id, value) {
-  const el = document.getElementById(id);
-  if (el) {
-    el.value = value ?? "";
-  }
+function get(id) {
+  return document.getElementById(id);
 }
 
 
@@ -53,296 +44,120 @@ function setValue(id, value) {
    LOCAL STORAGE
    ========================================= */
 
-function save() {
+function savePlayers() {
   localStorage.setItem(
-    KEY,
-    JSON.stringify(data)
+    PLAYERS_KEY,
+    JSON.stringify(players)
   );
 }
 
 
-function loadLocal() {
+function loadPlayersLocal() {
   try {
-    data = JSON.parse(
-      localStorage.getItem(KEY) || "[]"
+    players = JSON.parse(
+      localStorage.getItem(PLAYERS_KEY) || "[]"
     );
 
-    if (!Array.isArray(data)) {
-      data = [];
+    if (!Array.isArray(players)) {
+      players = [];
     }
 
-  } catch (error) {
-    console.log("Local data error:", error);
-    data = [];
+  } catch (e) {
+    players = [];
   }
 }
 
 
 /* =========================================
-   LOAD PLAYERS FROM GOOGLE SHEET
+   GOOGLE SHEET - LOAD
    ========================================= */
 
-async function loadPlayers() {
+async function loadPlayersFromGoogle() {
 
-  if (
-    !CONFIG.api ||
-    CONFIG.api === "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"
-  ) {
-    loadLocal();
-    renderBoard();
-
-    if (adminLogged) {
-      renderAdmin();
-    }
-
+  if (!CONFIG.api) {
     return;
   }
 
   try {
 
-    const res = await fetch(CONFIG.api);
+    const response = await fetch(CONFIG.api);
 
-    if (!res.ok) {
-      throw new Error("API response error");
+    if (!response.ok) {
+      throw new Error("Google API error");
     }
 
-    const json = await res.json();
+    const result = await response.json();
 
     if (
-      json.success &&
-      Array.isArray(json.players)
+      result &&
+      result.success &&
+      Array.isArray(result.players)
     ) {
 
-      data = json.players.map(x => ({
-        name: x.Name || x.name || "",
-        uid: x.UID || x.uid || "",
-        team: x.Team || x.team || "solo",
-        phone: x.Phone || x.phone || "",
-        utr: x.UTR || x.utr || "",
-        status: x.Status || x.status || "Pending",
-        kills: Number(
-          x.Kills || x.kills || 0
-        ),
-        points: Number(
-          x.Points || x.points || 0
-        )
-      }));
+      players = result.players.map(function (x) {
 
-      save();
+        return {
+          name: x.Name || x.name || "",
+          uid: x.UID || x.uid || "",
+          phone: x.Phone || x.phone || "",
+          team: x.Team || x.team || "solo",
+          utr: x.UTR || x.utr || "",
+          status: x.Status || x.status || "Pending",
+          kills: Number(x.Kills || x.kills || 0),
+          points: Number(x.Points || x.points || 0)
+        };
 
-      renderBoard();
+      });
+
+      savePlayers();
+      renderLeaderboard();
 
       if (adminLogged) {
         renderAdmin();
       }
-
-      return;
     }
-
-    throw new Error("Invalid API data");
-
-  } catch (err) {
-
-    console.log("API error:", err);
-
-    loadLocal();
-    renderBoard();
-
-    if (adminLogged) {
-      renderAdmin();
-    }
-  }
-}
-
-
-/* =========================================
-   MATCH INFO
-   ========================================= */
-
-function loadMatchInfo() {
-
-  try {
-
-    const saved = JSON.parse(
-      localStorage.getItem(MATCH_KEY) || "{}"
-    );
-
-    setValue(
-      "roomId",
-      saved.roomId || ""
-    );
-
-    setValue(
-      "roomPassword",
-      saved.roomPassword || ""
-    );
-
-    setValue(
-      "matchMessage",
-      saved.matchMessage ||
-      "Room खुल गया है! सभी players समय पर join करें।"
-    );
 
   } catch (error) {
-    console.log("Match info error:", error);
-  }
 
-  renderMatchInfo();
-}
-
-
-function saveMatchInfo() {
-
-  const roomId = getValue("roomId");
-  const roomPassword = getValue("roomPassword");
-  const matchMessage = getValue(
-    "matchMessage",
-    "Room खुल गया है! सभी players समय पर join करें।"
-  );
-
-  const match = {
-    roomId,
-    roomPassword,
-    matchMessage
-  };
-
-  localStorage.setItem(
-    MATCH_KEY,
-    JSON.stringify(match)
-  );
-
-  renderMatchInfo();
-
-  alert("Match information saved successfully.");
-}
-
-
-function renderMatchInfo() {
-
-  let info;
-
-  try {
-    info = JSON.parse(
-      localStorage.getItem(MATCH_KEY) || "{}"
+    console.log(
+      "Google Sheet load failed:",
+      error
     );
-  } catch {
-    info = {};
-  }
 
-  const roomIdEl =
-    document.getElementById("showRoomId");
-
-  const roomPassEl =
-    document.getElementById("showRoomPassword");
-
-  const messageEl =
-    document.getElementById("showMatchMessage");
-
-  if (roomIdEl) {
-    roomIdEl.textContent =
-      info.roomId || "Room ID अभी नहीं आया";
-  }
-
-  if (roomPassEl) {
-    roomPassEl.textContent =
-      info.roomPassword || "Password अभी नहीं आया";
-  }
-
-  if (messageEl) {
-    messageEl.textContent =
-      info.matchMessage ||
-      "Room खुलने का इंतजार करें।";
+    // Website local data se continue karegi
   }
 }
 
 
 /* =========================================
-   PAGE SWITCH
+   PAGE SHOW
    ========================================= */
 
 function show(id) {
 
   document
     .querySelectorAll(".page")
-    .forEach(page => {
+    .forEach(function(page) {
       page.classList.remove("active");
     });
 
-  const page =
-    document.getElementById(id);
+  const page = get(id);
 
   if (page) {
     page.classList.add("active");
   }
 
-
   if (id === "leaderboard") {
-    renderBoard();
+    renderLeaderboard();
   }
-
 
   if (id === "admin") {
-
-    if (!adminLogged) {
-      return;
-    }
-
     renderAdmin();
   }
-
 
   if (id === "home") {
-    loadMatchInfo();
+    renderMatchInfo();
   }
-}
-
-
-/* =========================================
-   ADMIN LOGIN
-   ========================================= */
-
-function adminLogin() {
-
-  const passwordEl =
-    document.getElementById("adminPassword");
-
-  if (!passwordEl) {
-    alert(
-      "adminPassword input नहीं मिला।"
-    );
-    return;
-  }
-
-  const password =
-    passwordEl.value.trim();
-
-  if (
-    password === CONFIG.adminPassword
-  ) {
-
-    adminLogged = true;
-
-    alert("Admin login successful.");
-
-    show("admin");
-    renderAdmin();
-
-  } else {
-
-    alert("Wrong admin password.");
-
-    passwordEl.value = "";
-  }
-}
-
-
-function adminLogout() {
-
-  adminLogged = false;
-
-  alert("Admin logout.");
-
-  show("home");
 }
 
 
@@ -352,141 +167,257 @@ function adminLogout() {
 
 function setupRegistration() {
 
-  const form =
-    document.getElementById("regForm");
+  const form = get("regForm");
 
   if (!form) {
     return;
   }
 
-  form.onsubmit = async function(e) {
+  form.addEventListener("submit", async function(e) {
 
     e.preventDefault();
 
+    const name = get("name")?.value.trim() || "";
+    const uid = get("uid")?.value.trim() || "";
+    const phone = get("phone")?.value.trim() || "";
+    const utr = get("utr")?.value.trim() || "";
 
-    const nameValue =
-      getValue("name");
+    if (!name) {
+      alert("Player Name डालें.");
+      return;
+    }
 
-    const uidValue =
-      getValue("uid");
+    if (!uid) {
+      alert("Free Fire UID डालें.");
+      return;
+    }
 
-    const phoneValue =
-      getValue("phone");
+    if (!phone) {
+      alert("WhatsApp Number डालें.");
+      return;
+    }
 
-    const utrValue =
-      getValue("utr");
-
-    const teamValue =
-      getValue("team", "solo");
-
-
-    if (!nameValue) {
-      alert("Name डालें।");
+    if (!utr) {
+      alert("Payment UTR / Transaction ID डालें.");
       return;
     }
 
 
-    if (!uidValue) {
-      alert("UID डालें।");
+    /* Check duplicate UID */
+
+    const alreadyExists = players.some(function(player) {
+      return String(player.uid) === String(uid);
+    });
+
+    if (alreadyExists) {
+      alert("यह UID पहले से registered है.");
       return;
     }
 
 
-    if (!utrValue) {
-      alert("UTR डालें।");
-      return;
-    }
+    /* Slot limit */
 
-
-    const exists =
-      data.some(
-        x =>
-          String(x.uid) ===
-          String(uidValue)
-      );
-
-
-    if (exists) {
-
-      alert(
-        "यह UID पहले से registered है।"
-      );
-
+    if (players.length >= 48) {
+      alert("Tournament के सभी 48 slots भर चुके हैं.");
       return;
     }
 
 
     const player = {
-
-      name: nameValue,
-
-      uid: uidValue,
-
-      team:
-        teamValue || "solo",
-
-      phone:
-        phoneValue,
-
-      utr:
-        utrValue,
-
-      status:
-        "Pending",
-
+      name: name,
+      uid: uid,
+      phone: phone,
+      team: "solo",
+      utr: utr,
+      status: "Pending",
       kills: 0,
-
       points: 0
     };
 
 
-    data.push(player);
+    /* Local save */
 
-    save();
+    players.push(player);
+    savePlayers();
+    renderLeaderboard();
 
-    renderBoard();
 
+    /* Google Sheet */
 
     try {
 
-      if (
-        CONFIG.api &&
-        CONFIG.api !==
-        "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"
-      ) {
-
-        await fetch(CONFIG.api, {
-
+      const response = await fetch(
+        CONFIG.api,
+        {
           method: "POST",
 
           headers: {
-            "Content-Type":
-              "application/json"
+            "Content-Type": "text/plain;charset=utf-8"
           },
 
           body: JSON.stringify({
             action: "register",
             player: player
           })
-        });
+        }
+      );
+
+      const result = await response.json();
+
+      if (
+        result &&
+        result.success === false
+      ) {
+
+        alert(
+          result.error ||
+          "Registration में समस्या हुई."
+        );
+
+        return;
       }
 
     } catch (error) {
 
       console.log(
-        "Registration API error:",
+        "Google registration error:",
         error
       );
+
+      /*
+        Local registration already saved.
+        इसलिए user का data खोएगा नहीं.
+      */
     }
 
 
+    const message = get("regMsg");
+
+    if (message) {
+      message.textContent =
+        "Registration successful! Admin approval का इंतजार करें.";
+    }
+
     alert(
-      "Registration successful. Admin approval का इंतजार करें।"
+      "Registration successful!"
     );
 
-
     form.reset();
-  };
+
+  });
+}
+
+
+/* =========================================
+   LEADERBOARD
+   ========================================= */
+
+function renderLeaderboard() {
+
+  const board = get("board");
+
+  if (!board) {
+    return;
+  }
+
+
+  const approved = players
+    .filter(function(player) {
+
+      return String(
+        player.status || ""
+      ).toLowerCase() === "approved";
+
+    })
+    .sort(function(a, b) {
+
+      return (
+        Number(b.points || 0) -
+        Number(a.points || 0)
+      );
+
+    });
+
+
+  if (approved.length === 0) {
+
+    board.innerHTML =
+      '<p>No approved players yet.</p>';
+
+    return;
+  }
+
+
+  board.innerHTML = approved
+    .map(function(player, index) {
+
+      return `
+        <div class="panel">
+
+          <h3>
+            #${index + 1}
+            ${esc(player.name)}
+          </h3>
+
+          <p>
+            UID:
+            ${esc(player.uid)}
+          </p>
+
+          <p>
+            Kills:
+            <b>${Number(player.kills || 0)}</b>
+          </p>
+
+          <p>
+            Points:
+            <b>${Number(player.points || 0)}</b>
+          </p>
+
+        </div>
+      `;
+
+    })
+    .join("");
+}
+
+
+/* =========================================
+   ADMIN LOGIN
+   ========================================= */
+
+function login() {
+
+  const passwordInput =
+    get("adminPassword");
+
+  if (!passwordInput) {
+    return;
+  }
+
+  const password =
+    passwordInput.value.trim();
+
+
+  if (
+    password ===
+    CONFIG.adminPassword
+  ) {
+
+    adminLogged = true;
+
+    alert("Admin Login Successful!");
+
+    passwordInput.value = "";
+
+    renderAdmin();
+
+  } else {
+
+    alert("Wrong Admin Password.");
+
+    passwordInput.value = "";
+  }
 }
 
 
@@ -496,135 +427,137 @@ function setupRegistration() {
 
 function renderAdmin() {
 
+  const area = get("adminArea");
+
+  if (!area) {
+    return;
+  }
+
+
   if (!adminLogged) {
+
+    area.hidden = true;
+
     return;
   }
 
 
-  const playersElement =
-    document.getElementById("players");
-
-  const scoresElement =
-    document.getElementById("scores");
+  area.hidden = false;
 
 
-  if (
-    !playersElement ||
-    !scoresElement
-  ) {
-    return;
+  /* Room fields */
+
+  loadMatchInfo();
+
+
+  /* Players */
+
+  const playersBox =
+    get("players");
+
+  if (playersBox) {
+
+    if (players.length === 0) {
+
+      playersBox.innerHTML =
+        "<p>No players registered.</p>";
+
+    } else {
+
+      playersBox.innerHTML =
+        players.map(function(player, index) {
+
+          return `
+            <div class="panel">
+
+              <b>${esc(player.name)}</b>
+
+              <p>
+                UID:
+                ${esc(player.uid)}
+              </p>
+
+              <p>
+                Phone:
+                ${esc(player.phone)}
+              </p>
+
+              <p>
+                UTR:
+                ${esc(player.utr)}
+              </p>
+
+              <p>
+                Status:
+                <b>${esc(player.status)}</b>
+              </p>
+
+              <button
+                onclick="approvePlayer(${index})">
+                Approve
+              </button>
+
+              <button
+                onclick="deletePlayer(${index})">
+                Delete
+              </button>
+
+            </div>
+          `;
+
+        }).join("");
+    }
   }
 
 
-  /* PLAYERS */
+  /* Scores */
 
-  if (data.length === 0) {
+  const scoresBox =
+    get("scores");
 
-    playersElement.innerHTML =
-      '<p class="muted">No players.</p>';
+  if (scoresBox) {
 
-  } else {
+    if (players.length === 0) {
 
-    playersElement.innerHTML =
-      data.map((x, i) => {
+      scoresBox.innerHTML =
+        "<p>No players.</p>";
 
-        return `
+    } else {
 
-          <div class="panel">
+      scoresBox.innerHTML =
+        players.map(function(player, index) {
 
-            <b>${esc(x.name)}</b><br><br>
+          return `
+            <div class="panel">
 
-            UID:
-            ${esc(x.uid)}<br>
+              <b>${esc(player.name)}</b>
 
-            Team:
-            ${esc(x.team || "solo")}<br>
+              <input
+                id="kills_${index}"
+                type="number"
+                min="0"
+                value="${Number(player.kills || 0)}"
+                placeholder="Kills"
+              >
 
-            Phone:
-            ${esc(x.phone || "-")}<br>
+              <input
+                id="points_${index}"
+                type="number"
+                min="0"
+                value="${Number(player.points || 0)}"
+                placeholder="Points"
+              >
 
-            UTR:
-            ${esc(x.utr || "-")}<br>
+              <button
+                onclick="saveScore(${index})">
+                Save Score
+              </button>
 
-            Status:
-            <b>${esc(
-              x.status || "Pending"
-            )}</b>
+            </div>
+          `;
 
-            <br><br>
-
-
-            <button
-              onclick="approve(${i})">
-              Approve
-            </button>
-
-
-            <button
-              onclick="del(${i})">
-              Delete
-            </button>
-
-          </div>
-        `;
-
-      }).join("");
-  }
-
-
-  /* SCORES */
-
-  if (data.length === 0) {
-
-    scoresElement.innerHTML =
-      '<p class="muted">No players.</p>';
-
-  } else {
-
-    scoresElement.innerHTML =
-      data.map((x, i) => {
-
-        return `
-
-          <div class="panel">
-
-            <b>${esc(x.name)}</b>
-
-            <br><br>
-
-
-            <input
-              id="k${i}"
-              type="number"
-              min="0"
-              value="${Number(
-                x.kills || 0
-              )}"
-              placeholder="Kills"
-            >
-
-
-            <input
-              id="p${i}"
-              type="number"
-              min="0"
-              value="${Number(
-                x.points || 0
-              )}"
-              placeholder="Points"
-            >
-
-
-            <button
-              onclick="saveScore(${i})">
-              Save Score
-            </button>
-
-          </div>
-
-        `;
-
-      }).join("");
+        }).join("");
+    }
   }
 }
 
@@ -633,68 +566,27 @@ function renderAdmin() {
    APPROVE PLAYER
    ========================================= */
 
-async function approve(index) {
+function approvePlayer(index) {
 
   if (!adminLogged) {
     alert("Admin login required.");
     return;
   }
 
-
-  if (!data[index]) {
+  if (!players[index]) {
     return;
   }
 
+  players[index].status = "Approved";
 
-  data[index].status =
-    "Approved";
-
-
-  save();
+  savePlayers();
 
   renderAdmin();
-
-  renderBoard();
-
-
-  try {
-
-    if (
-      CONFIG.api &&
-      CONFIG.api !==
-      "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"
-    ) {
-
-      await fetch(CONFIG.api, {
-
-        method: "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
-
-        body: JSON.stringify({
-
-          action: "approve",
-
-          uid: data[index].uid
-
-        })
-      });
-    }
-
-  } catch (error) {
-
-    console.log(
-      "Approve API error:",
-      error
-    );
-  }
-
+  renderLeaderboard();
 
   alert(
-    "Player approved successfully."
+    players[index].name +
+    " approved successfully."
   );
 }
 
@@ -703,26 +595,26 @@ async function approve(index) {
    DELETE PLAYER
    ========================================= */
 
-async function del(index) {
+function deletePlayer(index) {
 
   if (!adminLogged) {
     alert("Admin login required.");
     return;
   }
 
-
-  if (!data[index]) {
+  if (!players[index]) {
     return;
   }
 
 
-  const player =
-    data[index];
+  const name =
+    players[index].name;
 
 
   const confirmDelete =
     confirm(
-      `क्या ${player.name || player.uid} को delete करना है?`
+      name +
+      " को delete करना है?"
     );
 
 
@@ -731,54 +623,14 @@ async function del(index) {
   }
 
 
-  data.splice(index, 1);
+  players.splice(index, 1);
 
-  save();
+  savePlayers();
 
   renderAdmin();
+  renderLeaderboard();
 
-  renderBoard();
-
-
-  try {
-
-    if (
-      CONFIG.api &&
-      CONFIG.api !==
-      "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"
-    ) {
-
-      await fetch(CONFIG.api, {
-
-        method: "POST",
-
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
-
-        body: JSON.stringify({
-
-          action: "delete",
-
-          uid: player.uid
-
-        })
-      });
-    }
-
-  } catch (error) {
-
-    console.log(
-      "Delete API error:",
-      error
-    );
-  }
-
-
-  alert(
-    "Player deleted successfully."
-  );
+  alert("Player deleted.");
 }
 
 
@@ -793,205 +645,217 @@ function saveScore(index) {
     return;
   }
 
-
-  if (!data[index]) {
+  if (!players[index]) {
     return;
   }
 
 
   const killsInput =
-    document.getElementById(
-      `k${index}`
-    );
+    get("kills_" + index);
 
   const pointsInput =
-    document.getElementById(
-      `p${index}`
+    get("points_" + index);
+
+
+  const kills =
+    Number(killsInput?.value || 0);
+
+  const points =
+    Number(pointsInput?.value || 0);
+
+
+  players[index].kills =
+    Math.max(0, kills);
+
+  players[index].points =
+    Math.max(0, points);
+
+
+  savePlayers();
+
+  renderAdmin();
+  renderLeaderboard();
+
+  alert("Score saved successfully.");
+}
+
+
+/* =========================================
+   MATCH INFO
+   ========================================= */
+
+function loadMatchInfo() {
+
+  try {
+
+    const info =
+      JSON.parse(
+        localStorage.getItem(MATCH_KEY) ||
+        "{}"
+      );
+
+
+    if (get("roomId")) {
+      get("roomId").value =
+        info.roomId || "";
+    }
+
+    if (get("roomPassword")) {
+      get("roomPassword").value =
+        info.roomPassword || "";
+    }
+
+    if (get("announcement")) {
+      get("announcement").value =
+        info.announcement || "";
+    }
+
+
+  } catch (error) {
+
+    console.log(
+      "Match info error:",
+      error
     );
+  }
 
 
-  if (
-    !killsInput ||
-    !pointsInput
-  ) {
+  renderMatchInfo();
+}
+
+
+/* =========================================
+   SAVE ADMIN / MATCH INFO
+   ========================================= */
+
+function saveAdmin() {
+
+  if (!adminLogged) {
+    alert("पहले Admin Login करो.");
     return;
   }
 
 
-  const kills =
-    Number(killsInput.value) || 0;
+  const roomId =
+    get("roomId")?.value.trim() || "";
 
-  const points =
-    Number(pointsInput.value) || 0;
+  const roomPassword =
+    get("roomPassword")?.value.trim() || "";
 
-
-  data[index].kills =
-    Math.max(0, kills);
-
-  data[index].points =
-    Math.max(0, points);
+  const announcement =
+    get("announcement")?.value.trim() || "";
 
 
-  save();
+  const match = {
+    roomId: roomId,
+    roomPassword: roomPassword,
+    announcement: announcement
+  };
 
-  renderAdmin();
 
-  renderBoard();
+  localStorage.setItem(
+    MATCH_KEY,
+    JSON.stringify(match)
+  );
 
+
+  renderMatchInfo();
 
   alert(
-    "Score saved successfully."
+    "Match information saved successfully."
   );
 }
 
 
 /* =========================================
-   LEADERBOARD
+   SHOW MATCH INFO ON HOME
    ========================================= */
 
-function renderBoard() {
+function renderMatchInfo() {
 
-  const board =
-    document.getElementById(
-      "leaderboardList"
-    );
+  let info = {};
 
-  if (!board) {
-    return;
-  }
+  try {
 
-
-  const approved =
-    data
-      .filter(
-        x =>
-          String(
-            x.status
-          ).toLowerCase() ===
-          "approved"
-      )
-      .sort(
-        (a, b) =>
-          Number(b.points || 0) -
-          Number(a.points || 0)
+    info =
+      JSON.parse(
+        localStorage.getItem(MATCH_KEY) ||
+        "{}"
       );
 
-
-  if (approved.length === 0) {
-
-    board.innerHTML =
-      '<p class="muted">No approved players yet.</p>';
-
-    return;
+  } catch {
+    info = {};
   }
 
 
-  board.innerHTML =
-    approved.map((x, i) => {
+  const roomBox =
+    get("roomInfo");
 
-      return `
 
-        <div class="panel">
+  const roomId =
+    get("homeRoomId");
 
-          <h3>
-            #${i + 1}
-            ${esc(x.name)}
-          </h3>
+  const roomPassword =
+    get("homeRoomPassword");
 
-          UID:
-          ${esc(x.uid)}
 
-          <br>
+  if (
+    roomBox &&
+    info.roomId &&
+    info.roomPassword
+  ) {
 
-          Team:
-          ${esc(x.team || "solo")}
+    roomBox.hidden = false;
 
-          <br>
+  } else if (roomBox) {
 
-          Kills:
-          <b>${Number(
-            x.kills || 0
-          )}</b>
+    roomBox.hidden = true;
+  }
 
-          <br>
 
-          Points:
-          <b>${Number(
-            x.points || 0
-          )}</b>
+  if (roomId) {
 
-        </div>
+    roomId.textContent =
+      info.roomId || "-";
+  }
 
-      `;
 
-    }).join("");
+  if (roomPassword) {
+
+    roomPassword.textContent =
+      info.roomPassword || "-";
+  }
+
+
+  const notice =
+    get("notice");
+
+
+  if (notice) {
+
+    notice.textContent =
+      info.announcement || "";
+  }
 }
 
 
 /* =========================================
-   AUTO LOAD
+   INITIALIZE
    ========================================= */
 
 document.addEventListener(
   "DOMContentLoaded",
   function() {
 
-    loadLocal();
+    loadPlayersLocal();
 
     setupRegistration();
 
     loadMatchInfo();
 
-    renderBoard();
+    renderLeaderboard();
 
-
-    /* Admin login button */
-
-    const loginButton =
-      document.getElementById(
-        "adminLoginBtn"
-      );
-
-    if (loginButton) {
-
-      loginButton.onclick =
-        adminLogin;
-    }
-
-
-    /* Save match button */
-
-    const saveMatchButton =
-      document.getElementById(
-        "saveMatchBtn"
-      );
-
-    if (saveMatchButton) {
-
-      saveMatchButton.onclick =
-        saveMatchInfo;
-    }
-
-
-    /* Logout button */
-
-    const logoutButton =
-      document.getElementById(
-        "adminLogoutBtn"
-      );
-
-    if (logoutButton) {
-
-      logoutButton.onclick =
-        adminLogout;
-    }
-
-
-    /*
-      Google Sheet se fresh data
-    */
-
-    loadPlayers();
+    loadPlayersFromGoogle();
 
   }
 );
@@ -1001,29 +865,20 @@ document.addEventListener(
    GLOBAL FUNCTIONS
    ========================================= */
 
-window.show =
-  show;
+window.show = show;
 
-window.adminLogin =
-  adminLogin;
+window.login = login;
 
-window.adminLogout =
-  adminLogout;
+window.saveAdmin = saveAdmin;
 
-window.approve =
-  approve;
+window.approvePlayer =
+  approvePlayer;
 
-window.del =
-  del;
+window.deletePlayer =
+  deletePlayer;
 
 window.saveScore =
   saveScore;
 
-window.saveMatchInfo =
-  saveMatchInfo;
-
-window.renderBoard =
-  renderBoard;
-
-window.renderAdmin =
-  renderAdmin;
+window.renderLeaderboard =
+  renderLeaderboard;
