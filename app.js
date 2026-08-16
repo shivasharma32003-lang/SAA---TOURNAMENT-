@@ -1,54 +1,151 @@
+/* =========================================
+   SAA TOURNAMENT - APP.JS
+   ========================================= */
+
 const CONFIG = {
   entry: 20,
   prize: 500,
-  upi: 'shivaysharma52@ybl',
-  api: 'https://script.google.com/macros/s/AKfycbw3lF5lyBedbTCpODywIQgq3nxBGkj_4Wx2iq6oqmX6fvY_P00AEVGD8rYEJhohffx2/exec'
+  upi: "shivaysharma52@ybl",
+
+  // APNA CURRENT GOOGLE APPS SCRIPT URL YAHAN PASTE KARO
+  api: "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE",
+
+  // Admin password
+  adminPassword: "123456789"
 };
 
-const KEY = 'saa_players';
+const KEY = "saa_players";
+const MATCH_KEY = "saa_match_info";
 
 let data = [];
 let adminLogged = false;
 
 
-// ===============================
-// LOAD PLAYERS FROM GOOGLE SHEET
-// ===============================
-async function loadPlayers() {
+/* =========================================
+   HELPERS
+   ========================================= */
+
+function esc(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
+function getValue(id, fallback = "") {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : fallback;
+}
+
+
+function setValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.value = value ?? "";
+  }
+}
+
+
+/* =========================================
+   LOCAL STORAGE
+   ========================================= */
+
+function save() {
+  localStorage.setItem(
+    KEY,
+    JSON.stringify(data)
+  );
+}
+
+
+function loadLocal() {
   try {
+    data = JSON.parse(
+      localStorage.getItem(KEY) || "[]"
+    );
+
+    if (!Array.isArray(data)) {
+      data = [];
+    }
+
+  } catch (error) {
+    console.log("Local data error:", error);
+    data = [];
+  }
+}
+
+
+/* =========================================
+   LOAD PLAYERS FROM GOOGLE SHEET
+   ========================================= */
+
+async function loadPlayers() {
+
+  if (
+    !CONFIG.api ||
+    CONFIG.api === "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"
+  ) {
+    loadLocal();
+    renderBoard();
+
+    if (adminLogged) {
+      renderAdmin();
+    }
+
+    return;
+  }
+
+  try {
+
     const res = await fetch(CONFIG.api);
+
+    if (!res.ok) {
+      throw new Error("API response error");
+    }
+
     const json = await res.json();
 
-    if (json.success && Array.isArray(json.players)) {
+    if (
+      json.success &&
+      Array.isArray(json.players)
+    ) {
 
       data = json.players.map(x => ({
-        name: x.Name || x.name || '',
-        uid: x.UID || x.uid || '',
-        team: x.Team || x.team || 'solo',
-        phone: x.phone || x.Phone || '',
-        utr: x.UTR || x.utr || '',
-        status: x.Status || x.status || 'Pending',
-        kills: Number(x.Kills || x.kills || 0),
-        points: Number(x.Points || x.points || 0)
+        name: x.Name || x.name || "",
+        uid: x.UID || x.uid || "",
+        team: x.Team || x.team || "solo",
+        phone: x.Phone || x.phone || "",
+        utr: x.UTR || x.utr || "",
+        status: x.Status || x.status || "Pending",
+        kills: Number(
+          x.Kills || x.kills || 0
+        ),
+        points: Number(
+          x.Points || x.points || 0
+        )
       }));
 
-      localStorage.setItem(KEY, JSON.stringify(data));
+      save();
 
       renderBoard();
 
       if (adminLogged) {
         renderAdmin();
       }
+
+      return;
     }
+
+    throw new Error("Invalid API data");
 
   } catch (err) {
 
-    console.log('API error:', err);
+    console.log("API error:", err);
 
-    data = JSON.parse(
-      localStorage.getItem(KEY) || '[]'
-    );
-
+    loadLocal();
     renderBoard();
 
     if (adminLogged) {
@@ -58,586 +155,875 @@ async function loadPlayers() {
 }
 
 
-// ===============================
-// LOCAL SAVE
-// ===============================
-function save() {
-  localStorage.setItem(
-    KEY,
-    JSON.stringify(data)
-  );
+/* =========================================
+   MATCH INFO
+   ========================================= */
+
+function loadMatchInfo() {
+
+  try {
+
+    const saved = JSON.parse(
+      localStorage.getItem(MATCH_KEY) || "{}"
+    );
+
+    setValue(
+      "roomId",
+      saved.roomId || ""
+    );
+
+    setValue(
+      "roomPassword",
+      saved.roomPassword || ""
+    );
+
+    setValue(
+      "matchMessage",
+      saved.matchMessage ||
+      "Room खुल गया है! सभी players समय पर join करें।"
+    );
+
+  } catch (error) {
+    console.log("Match info error:", error);
+  }
+
+  renderMatchInfo();
 }
 
 
-// ===============================
-// PAGE SWITCH
-// ===============================
+function saveMatchInfo() {
+
+  const roomId = getValue("roomId");
+  const roomPassword = getValue("roomPassword");
+  const matchMessage = getValue(
+    "matchMessage",
+    "Room खुल गया है! सभी players समय पर join करें।"
+  );
+
+  const match = {
+    roomId,
+    roomPassword,
+    matchMessage
+  };
+
+  localStorage.setItem(
+    MATCH_KEY,
+    JSON.stringify(match)
+  );
+
+  renderMatchInfo();
+
+  alert("Match information saved successfully.");
+}
+
+
+function renderMatchInfo() {
+
+  let info;
+
+  try {
+    info = JSON.parse(
+      localStorage.getItem(MATCH_KEY) || "{}"
+    );
+  } catch {
+    info = {};
+  }
+
+  const roomIdEl =
+    document.getElementById("showRoomId");
+
+  const roomPassEl =
+    document.getElementById("showRoomPassword");
+
+  const messageEl =
+    document.getElementById("showMatchMessage");
+
+  if (roomIdEl) {
+    roomIdEl.textContent =
+      info.roomId || "Room ID अभी नहीं आया";
+  }
+
+  if (roomPassEl) {
+    roomPassEl.textContent =
+      info.roomPassword || "Password अभी नहीं आया";
+  }
+
+  if (messageEl) {
+    messageEl.textContent =
+      info.matchMessage ||
+      "Room खुलने का इंतजार करें।";
+  }
+}
+
+
+/* =========================================
+   PAGE SWITCH
+   ========================================= */
+
 function show(id) {
 
   document
-    .querySelectorAll('.page')
-    .forEach(x => x.classList.remove('active'));
+    .querySelectorAll(".page")
+    .forEach(page => {
+      page.classList.remove("active");
+    });
 
-  const page = document.getElementById(id);
+  const page =
+    document.getElementById(id);
 
   if (page) {
-    page.classList.add('active');
+    page.classList.add("active");
   }
 
-  if (id === 'leaderboard') {
+
+  if (id === "leaderboard") {
     renderBoard();
   }
 
-  if (id === 'admin' && adminLogged) {
+
+  if (id === "admin") {
+
+    if (!adminLogged) {
+      return;
+    }
+
     renderAdmin();
   }
 
-  // Home open होने पर room information दिखाओ
-  if (id === 'home') {
+
+  if (id === "home") {
     loadMatchInfo();
   }
 }
 
 
-// ===============================
-// REGISTRATION
-// ===============================
-document.getElementById('regForm').onsubmit = async function(e) {
+/* =========================================
+   ADMIN LOGIN
+   ========================================= */
 
-  e.preventDefault();
+function adminLogin() {
 
-  const nameValue =
-    document.getElementById('name').value.trim();
+  const passwordEl =
+    document.getElementById("adminPassword");
 
-  const uidValue =
-    document.getElementById('uid').value.trim();
+  if (!passwordEl) {
+    alert(
+      "adminPassword input नहीं मिला।"
+    );
+    return;
+  }
 
-  const phoneValue =
-    document.getElementById('phone').value.trim();
-
-  const utrElement =
-    document.getElementById('utr');
-
-  const utrValue =
-    utrElement ? utrElement.value.trim() : '';
-
-  const teamElement =
-    document.getElementById('team');
-
-  const teamValue =
-    teamElement ? teamElement.value.trim() : 'solo';
-
+  const password =
+    passwordEl.value.trim();
 
   if (
-    !nameValue ||
-    !uidValue ||
-    !phoneValue ||
-    !utrValue
+    password === CONFIG.adminPassword
   ) {
 
-    document.getElementById('regMsg').textContent =
-      'Please fill Player Name, UID, WhatsApp Number and Payment UTR.';
+    adminLogged = true;
 
+    alert("Admin login successful.");
+
+    show("admin");
+    renderAdmin();
+
+  } else {
+
+    alert("Wrong admin password.");
+
+    passwordEl.value = "";
+  }
+}
+
+
+function adminLogout() {
+
+  adminLogged = false;
+
+  alert("Admin logout.");
+
+  show("home");
+}
+
+
+/* =========================================
+   REGISTRATION
+   ========================================= */
+
+function setupRegistration() {
+
+  const form =
+    document.getElementById("regForm");
+
+  if (!form) {
+    return;
+  }
+
+  form.onsubmit = async function(e) {
+
+    e.preventDefault();
+
+
+    const nameValue =
+      getValue("name");
+
+    const uidValue =
+      getValue("uid");
+
+    const phoneValue =
+      getValue("phone");
+
+    const utrValue =
+      getValue("utr");
+
+    const teamValue =
+      getValue("team", "solo");
+
+
+    if (!nameValue) {
+      alert("Name डालें।");
+      return;
+    }
+
+
+    if (!uidValue) {
+      alert("UID डालें।");
+      return;
+    }
+
+
+    if (!utrValue) {
+      alert("UTR डालें।");
+      return;
+    }
+
+
+    const exists =
+      data.some(
+        x =>
+          String(x.uid) ===
+          String(uidValue)
+      );
+
+
+    if (exists) {
+
+      alert(
+        "यह UID पहले से registered है।"
+      );
+
+      return;
+    }
+
+
+    const player = {
+
+      name: nameValue,
+
+      uid: uidValue,
+
+      team:
+        teamValue || "solo",
+
+      phone:
+        phoneValue,
+
+      utr:
+        utrValue,
+
+      status:
+        "Pending",
+
+      kills: 0,
+
+      points: 0
+    };
+
+
+    data.push(player);
+
+    save();
+
+    renderBoard();
+
+
+    try {
+
+      if (
+        CONFIG.api &&
+        CONFIG.api !==
+        "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"
+      ) {
+
+        await fetch(CONFIG.api, {
+
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+            action: "register",
+            player: player
+          })
+        });
+      }
+
+    } catch (error) {
+
+      console.log(
+        "Registration API error:",
+        error
+      );
+    }
+
+
+    alert(
+      "Registration successful. Admin approval का इंतजार करें।"
+    );
+
+
+    form.reset();
+  };
+}
+
+
+/* =========================================
+   ADMIN PANEL
+   ========================================= */
+
+function renderAdmin() {
+
+  if (!adminLogged) {
     return;
   }
 
 
-  document.getElementById('regMsg').textContent =
-    'Submitting registration...';
+  const playersElement =
+    document.getElementById("players");
+
+  const scoresElement =
+    document.getElementById("scores");
+
+
+  if (
+    !playersElement ||
+    !scoresElement
+  ) {
+    return;
+  }
+
+
+  /* PLAYERS */
+
+  if (data.length === 0) {
+
+    playersElement.innerHTML =
+      '<p class="muted">No players.</p>';
+
+  } else {
+
+    playersElement.innerHTML =
+      data.map((x, i) => {
+
+        return `
+
+          <div class="panel">
+
+            <b>${esc(x.name)}</b><br><br>
+
+            UID:
+            ${esc(x.uid)}<br>
+
+            Team:
+            ${esc(x.team || "solo")}<br>
+
+            Phone:
+            ${esc(x.phone || "-")}<br>
+
+            UTR:
+            ${esc(x.utr || "-")}<br>
+
+            Status:
+            <b>${esc(
+              x.status || "Pending"
+            )}</b>
+
+            <br><br>
+
+
+            <button
+              onclick="approve(${i})">
+              Approve
+            </button>
+
+
+            <button
+              onclick="del(${i})">
+              Delete
+            </button>
+
+          </div>
+        `;
+
+      }).join("");
+  }
+
+
+  /* SCORES */
+
+  if (data.length === 0) {
+
+    scoresElement.innerHTML =
+      '<p class="muted">No players.</p>';
+
+  } else {
+
+    scoresElement.innerHTML =
+      data.map((x, i) => {
+
+        return `
+
+          <div class="panel">
+
+            <b>${esc(x.name)}</b>
+
+            <br><br>
+
+
+            <input
+              id="k${i}"
+              type="number"
+              min="0"
+              value="${Number(
+                x.kills || 0
+              )}"
+              placeholder="Kills"
+            >
+
+
+            <input
+              id="p${i}"
+              type="number"
+              min="0"
+              value="${Number(
+                x.points || 0
+              )}"
+              placeholder="Points"
+            >
+
+
+            <button
+              onclick="saveScore(${i})">
+              Save Score
+            </button>
+
+          </div>
+
+        `;
+
+      }).join("");
+  }
+}
+
+
+/* =========================================
+   APPROVE PLAYER
+   ========================================= */
+
+async function approve(index) {
+
+  if (!adminLogged) {
+    alert("Admin login required.");
+    return;
+  }
+
+
+  if (!data[index]) {
+    return;
+  }
+
+
+  data[index].status =
+    "Approved";
+
+
+  save();
+
+  renderAdmin();
+
+  renderBoard();
 
 
   try {
 
-    await fetch(CONFIG.api, {
-      mode: 'no-cors',
+    if (
+      CONFIG.api &&
+      CONFIG.api !==
+      "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"
+    ) {
 
-      method: 'POST',
+      await fetch(CONFIG.api, {
 
-      headers: {
-        'Content-Type':
-          'text/plain;charset=utf-8'
-      },
+        method: "POST",
 
-      body: JSON.stringify({
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
 
-        name: nameValue,
-        uid: uidValue,
-        phone: phoneValue,
-        team: teamValue,
-        utr: utrValue
+        body: JSON.stringify({
 
-      })
+          action: "approve",
 
-    });
+          uid: data[index].uid
 
+        })
+      });
+    }
 
-    document.getElementById('regMsg').textContent =
-      'Registration submitted successfully!';
+  } catch (error) {
 
-    e.target.reset();
-
-    await loadPlayers();
-
-
-  } catch (err) {
-
-    console.log(err);
-
-    document.getElementById('regMsg').textContent =
-      'Registration failed. Please try again.';
-
-  }
-
-};
-
-
-// ===============================
-// LEADERBOARD
-// ===============================
-function renderBoard() {
-
-  const boardElement =
-    document.getElementById('board');
-
-  if (!boardElement) return;
-
-
-  const players = [...data]
-    .filter(x =>
-      x.status !== 'Deleted'
-    )
-    .sort((a, b) =>
-      b.points - a.points ||
-      b.kills - a.kills
+    console.log(
+      "Approve API error:",
+      error
     );
-
-
-  if (!players.length) {
-
-    boardElement.innerHTML =
-      '<p class="muted">No players registered.</p>';
-
-    return;
   }
-
-
-  boardElement.innerHTML =
-
-    '<table>' +
-
-    '<tr>' +
-    '<th>#</th>' +
-    '<th>Player</th>' +
-    '<th>Kills</th>' +
-    '<th>Points</th>' +
-    '</tr>' +
-
-    players.map((x, i) =>
-
-      '<tr>' +
-
-      '<td>' +
-      (i + 1) +
-      '</td>' +
-
-      '<td>' +
-      esc(x.name) +
-      '</td>' +
-
-      '<td>' +
-      x.kills +
-      '</td>' +
-
-      '<td>' +
-      x.points +
-      '</td>' +
-
-      '</tr>'
-
-    ).join('') +
-
-    '</table>';
-}
-
-
-// ===============================
-// ADMIN LOGIN
-// ===============================
-function login() {
-
-  const password =
-    document.getElementById('adminPassword').value;
-
-
-  if (password !== 'SHIVA7900') {
-
-    alert(
-      'Wrong admin password.'
-    );
-
-    return;
-  }
-
-
-  adminLogged = true;
-
-  document.getElementById(
-    'adminArea'
-  ).hidden = false;
-
-  // Saved information Admin fields में भी दिखाओ
-  loadAdminFields();
-
-  renderAdmin();
-}
-
-
-// ===============================
-// ADMIN PANEL
-// ===============================
-function renderAdmin() {
-
-  const playersElement =
-    document.getElementById('players');
-
-  const scoresElement =
-    document.getElementById('scores');
-
-
-  if (!playersElement || !scoresElement) {
-    return;
-  }
-
-
-  playersElement.innerHTML = data.map(
-    (x, i) =>
-
-      `<div class="panel">
-
-        <b>${esc(x.name)}</b><br>
-
-        UID:
-        ${esc(x.uid)}<br>
-
-        Team:
-        ${esc(x.team || 'solo')}<br>
-
-        Phone:
-        ${esc(x.phone || '-')}<br>
-
-        UTR:
-        ${esc(x.utr || '-')}<br>
-
-        Status:
-        ${esc(x.status || 'Pending')}<br><br>
-
-        <button onclick="approve(${i})">
-          Approve
-        </button>
-
-        <button onclick="del(${i})">
-          Delete
-        </button>
-
-      </div>`
-
-  ).join('') ||
-
-    '<p class="muted">No players.</p>';
-
-
-  scoresElement.innerHTML = data.map(
-    (x, i) =>
-
-      `<div class="panel">
-
-        <b>${esc(x.name)}</b>
-
-        <input
-          id="k${i}"
-          type="number"
-          min="0"
-          value="${x.kills}"
-          placeholder="Kills"
-        >
-
-        <input
-          id="p${i}"
-          type="number"
-          min="0"
-          value="${x.points}"
-          placeholder="Points"
-        >
-
-        <button
-          class="primary"
-          onclick="score(${i})">
-          Save Score
-        </button>
-
-      </div>`
-
-  ).join('');
-}
-
-
-// ===============================
-// APPROVE
-// ===============================
-function approve(i) {
-
-  if (!data[i]) return;
-
-  data[i].status = 'Approved';
-
-  save();
-
-  renderAdmin();
-
-  renderBoard();
-
-  alert(
-    data[i].name +
-    ' approved successfully.'
-  );
-}
-
-
-// ===============================
-// DELETE
-// ===============================
-function del(i) {
-
-  if (!data[i]) return;
-
-  const name = data[i].name;
-
-  if (!confirm(
-    'Delete ' + name + '?'
-  )) {
-    return;
-  }
-
-
-  data.splice(i, 1);
-
-  save();
-
-  renderAdmin();
-
-  renderBoard();
-}
-
-
-// ===============================
-// SAVE SCORE
-// ===============================
-function score(i) {
-
-  if (!data[i]) return;
-
-
-  const killsElement =
-    document.getElementById('k' + i);
-
-  const pointsElement =
-    document.getElementById('p' + i);
-
-
-  data[i].kills =
-    Number(killsElement.value || 0);
-
-  data[i].points =
-    Number(pointsElement.value || 0);
-
-
-  save();
-
-  renderAdmin();
-
-  renderBoard();
-
-  alert('Score saved.');
-}
-
-
-// ===============================
-// SAVE ROOM / ANNOUNCEMENT
-// ===============================
-function saveAdmin() {
-
-  const roomIdElement =
-    document.getElementById('roomId');
-
-  const roomPasswordElement =
-    document.getElementById('roomPassword');
-
-  const announcementElement =
-    document.getElementById('announcement');
-
-
-  const roomId =
-    roomIdElement.value.trim();
-
-  const roomPassword =
-    roomPasswordElement.value.trim();
-
-  const announcement =
-    announcementElement.value.trim();
-
-
-  // Save locally
-  localStorage.setItem(
-    'saa_room',
-    roomId
-  );
-
-  localStorage.setItem(
-    'saa_room_password',
-    roomPassword
-  );
-
-  localStorage.setItem(
-    'saa_notice',
-    announcement
-  );
-
-
-  // Immediately update Home
-  loadMatchInfo();
 
 
   alert(
-    'Match information saved.'
+    "Player approved successfully."
   );
 }
 
 
-// ===============================
-// LOAD MATCH INFORMATION
-// ===============================
-function loadMatchInfo() {
+/* =========================================
+   DELETE PLAYER
+   ========================================= */
 
-  const roomId =
-    localStorage.getItem('saa_room') || '';
+async function del(index) {
 
-  const roomPassword =
-    localStorage.getItem('saa_room_password') || '';
-
-  const announcement =
-    localStorage.getItem('saa_notice') || '';
-
-
-  // Announcement
-  const noticeElement =
-    document.getElementById('notice');
-
-  if (noticeElement) {
-
-    noticeElement.textContent =
-      announcement;
+  if (!adminLogged) {
+    alert("Admin login required.");
+    return;
   }
 
 
-  // Room information
-  const roomInfo =
-    document.getElementById('roomInfo');
+  if (!data[index]) {
+    return;
+  }
 
-  const homeRoomId =
-    document.getElementById('homeRoomId');
 
-  const homeRoomPassword =
-    document.getElementById('homeRoomPassword');
+  const player =
+    data[index];
+
+
+  const confirmDelete =
+    confirm(
+      `क्या ${player.name || player.uid} को delete करना है?`
+    );
+
+
+  if (!confirmDelete) {
+    return;
+  }
+
+
+  data.splice(index, 1);
+
+  save();
+
+  renderAdmin();
+
+  renderBoard();
+
+
+  try {
+
+    if (
+      CONFIG.api &&
+      CONFIG.api !==
+      "PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE"
+    ) {
+
+      await fetch(CONFIG.api, {
+
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify({
+
+          action: "delete",
+
+          uid: player.uid
+
+        })
+      });
+    }
+
+  } catch (error) {
+
+    console.log(
+      "Delete API error:",
+      error
+    );
+  }
+
+
+  alert(
+    "Player deleted successfully."
+  );
+}
+
+
+/* =========================================
+   SAVE SCORE
+   ========================================= */
+
+function saveScore(index) {
+
+  if (!adminLogged) {
+    alert("Admin login required.");
+    return;
+  }
+
+
+  if (!data[index]) {
+    return;
+  }
+
+
+  const killsInput =
+    document.getElementById(
+      `k${index}`
+    );
+
+  const pointsInput =
+    document.getElementById(
+      `p${index}`
+    );
 
 
   if (
-    roomInfo &&
-    homeRoomId &&
-    homeRoomPassword
+    !killsInput ||
+    !pointsInput
   ) {
+    return;
+  }
 
-    if (roomId && roomPassword) {
 
-      homeRoomId.textContent =
-        roomId;
+  const kills =
+    Number(killsInput.value) || 0;
 
-      homeRoomPassword.textContent =
-        roomPassword;
+  const points =
+    Number(pointsInput.value) || 0;
 
-      roomInfo.hidden = false;
 
-    } else {
+  data[index].kills =
+    Math.max(0, kills);
 
-      roomInfo.hidden = true;
+  data[index].points =
+    Math.max(0, points);
 
+
+  save();
+
+  renderAdmin();
+
+  renderBoard();
+
+
+  alert(
+    "Score saved successfully."
+  );
+}
+
+
+/* =========================================
+   LEADERBOARD
+   ========================================= */
+
+function renderBoard() {
+
+  const board =
+    document.getElementById(
+      "leaderboardList"
+    );
+
+  if (!board) {
+    return;
+  }
+
+
+  const approved =
+    data
+      .filter(
+        x =>
+          String(
+            x.status
+          ).toLowerCase() ===
+          "approved"
+      )
+      .sort(
+        (a, b) =>
+          Number(b.points || 0) -
+          Number(a.points || 0)
+      );
+
+
+  if (approved.length === 0) {
+
+    board.innerHTML =
+      '<p class="muted">No approved players yet.</p>';
+
+    return;
+  }
+
+
+  board.innerHTML =
+    approved.map((x, i) => {
+
+      return `
+
+        <div class="panel">
+
+          <h3>
+            #${i + 1}
+            ${esc(x.name)}
+          </h3>
+
+          UID:
+          ${esc(x.uid)}
+
+          <br>
+
+          Team:
+          ${esc(x.team || "solo")}
+
+          <br>
+
+          Kills:
+          <b>${Number(
+            x.kills || 0
+          )}</b>
+
+          <br>
+
+          Points:
+          <b>${Number(
+            x.points || 0
+          )}</b>
+
+        </div>
+
+      `;
+
+    }).join("");
+}
+
+
+/* =========================================
+   AUTO LOAD
+   ========================================= */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  function() {
+
+    loadLocal();
+
+    setupRegistration();
+
+    loadMatchInfo();
+
+    renderBoard();
+
+
+    /* Admin login button */
+
+    const loginButton =
+      document.getElementById(
+        "adminLoginBtn"
+      );
+
+    if (loginButton) {
+
+      loginButton.onclick =
+        adminLogin;
     }
+
+
+    /* Save match button */
+
+    const saveMatchButton =
+      document.getElementById(
+        "saveMatchBtn"
+      );
+
+    if (saveMatchButton) {
+
+      saveMatchButton.onclick =
+        saveMatchInfo;
+    }
+
+
+    /* Logout button */
+
+    const logoutButton =
+      document.getElementById(
+        "adminLogoutBtn"
+      );
+
+    if (logoutButton) {
+
+      logoutButton.onclick =
+        adminLogout;
+    }
+
+
+    /*
+      Google Sheet se fresh data
+    */
+
+    loadPlayers();
+
   }
-}
+);
 
 
-// ===============================
-// LOAD SAVED ADMIN FIELDS
-// ===============================
-function loadAdminFields() {
+/* =========================================
+   GLOBAL FUNCTIONS
+   ========================================= */
 
-  const roomId =
-    localStorage.getItem('saa_room') || '';
+window.show =
+  show;
 
-  const roomPassword =
-    localStorage.getItem('saa_room_password') || '';
+window.adminLogin =
+  adminLogin;
 
-  const announcement =
-    localStorage.getItem('saa_notice') || '';
+window.adminLogout =
+  adminLogout;
 
+window.approve =
+  approve;
 
-  const roomIdElement =
-    document.getElementById('roomId');
+window.del =
+  del;
 
-  const roomPasswordElement =
-    document.getElementById('roomPassword');
+window.saveScore =
+  saveScore;
 
-  const announcementElement =
-    document.getElementById('announcement');
+window.saveMatchInfo =
+  saveMatchInfo;
 
+window.renderBoard =
+  renderBoard;
 
-  if (roomIdElement) {
-    roomIdElement.value = roomId;
-  }
-
-  if (roomPasswordElement) {
-    roomPasswordElement.value = roomPassword;
-  }
-
-  if (announcementElement) {
-    announcementElement.value = announcement;
-  }
-}
-
-
-// ===============================
-// SECURITY / HTML ESCAPE
-// ===============================
-function esc(s) {
-
-  return String(s || '')
-    .replace(/[&<>"']/g, function(m) {
-
-      return {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-
-      }[m];
-
-    });
-}
-
-
-// ===============================
-// START
-// ===============================
-loadMatchInfo();
-
-loadPlayers();
+window.renderAdmin =
+  renderAdmin;
