@@ -264,7 +264,7 @@ function login() {
     document.getElementById('adminPassword').value;
 
 
-  if (password !== 'LOCAL_ADMIN_ONLY') {
+  if (password !== 'SHIVA7900') {
 
     alert(
       'Wrong admin password.'
