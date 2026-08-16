@@ -39,7 +39,6 @@ async function loadPlayers() {
       if (adminLogged) {
         renderAdmin();
       }
-
     }
 
   } catch (err) {
@@ -125,10 +124,15 @@ document.getElementById('regForm').onsubmit = async function(e) {
 
 
   // REQUIRED FIELDS
-  if (!nameValue || !uidValue || !phoneValue) {
+  if (
+    !nameValue ||
+    !uidValue ||
+    !phoneValue ||
+    !utrValue
+  ) {
 
     document.getElementById('regMsg').textContent =
-      'Please fill Player Name, UID and WhatsApp Number.';
+      'Please fill Player Name, UID, WhatsApp Number and Payment UTR.';
 
     return;
   }
@@ -152,13 +156,9 @@ document.getElementById('regForm').onsubmit = async function(e) {
       body: JSON.stringify({
 
         name: nameValue,
-
         uid: uidValue,
-
         phone: phoneValue,
-
         team: teamValue,
-
         utr: utrValue
 
       })
