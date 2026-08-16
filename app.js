@@ -1,5 +1,5 @@
 /* =========================================
-   SAA TOURNAMENT - FINAL APP.JS
+   SAA TOURNAMENT - CORRECTED APP.JS
    ========================================= */
 
 const CONFIG = {
@@ -25,6 +25,11 @@ let adminLogged = false;
    BASIC HELPERS
    ========================================= */
 
+function get(id) {
+  return document.getElementById(id);
+}
+
+
 function esc(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -32,11 +37,6 @@ function esc(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-}
-
-
-function get(id) {
-  return document.getElementById(id);
 }
 
 
@@ -54,22 +54,20 @@ function savePlayers() {
 
 function loadPlayersLocal() {
   try {
-    players = JSON.parse(
+    const data = JSON.parse(
       localStorage.getItem(PLAYERS_KEY) || "[]"
     );
 
-    if (!Array.isArray(players)) {
-      players = [];
-    }
+    players = Array.isArray(data) ? data : [];
 
-  } catch (e) {
+  } catch (error) {
     players = [];
   }
 }
 
 
 /* =========================================
-   GOOGLE SHEET - LOAD
+   GOOGLE SHEET - LOAD PLAYERS
    ========================================= */
 
 async function loadPlayersFromGoogle() {
@@ -94,7 +92,7 @@ async function loadPlayersFromGoogle() {
       Array.isArray(result.players)
     ) {
 
-      players = result.players.map(function (x) {
+      players = result.players.map(function(x) {
 
         return {
           name: x.Name || x.name || "",
@@ -110,6 +108,7 @@ async function loadPlayersFromGoogle() {
       });
 
       savePlayers();
+
       renderLeaderboard();
 
       if (adminLogged) {
@@ -123,14 +122,12 @@ async function loadPlayersFromGoogle() {
       "Google Sheet load failed:",
       error
     );
-
-    // Website local data se continue karegi
   }
 }
 
 
 /* =========================================
-   PAGE SHOW
+   PAGE NAVIGATION
    ========================================= */
 
 function show(id) {
@@ -177,10 +174,20 @@ function setupRegistration() {
 
     e.preventDefault();
 
-    const name = get("name")?.value.trim() || "";
-    const uid = get("uid")?.value.trim() || "";
-    const phone = get("phone")?.value.trim() || "";
-    const utr = get("utr")?.value.trim() || "";
+    const name =
+      get("name")?.value.trim() || "";
+
+    const uid =
+      get("uid")?.value.trim() || "";
+
+    const phone =
+      get("phone")?.value.trim() || "";
+
+    const utr =
+      get("utr")?.value.trim() || "";
+
+
+    /* VALIDATION */
 
     if (!name) {
       alert("Player Name डालें.");
@@ -203,11 +210,23 @@ function setupRegistration() {
     }
 
 
-    /* Check duplicate UID */
+    /* 48 SLOT LIMIT */
+
+    if (players.length >= 48) {
+      alert("Tournament के सभी 48 slots भर चुके हैं.");
+      return;
+    }
+
+
+    /* DUPLICATE UID */
 
     const alreadyExists = players.some(function(player) {
-      return String(player.uid) === String(uid);
+
+      return String(player.uid).trim() ===
+             String(uid).trim();
+
     });
+
 
     if (alreadyExists) {
       alert("यह UID पहले से registered है.");
@@ -215,13 +234,7 @@ function setupRegistration() {
     }
 
 
-    /* Slot limit */
-
-    if (players.length >= 48) {
-      alert("Tournament के सभी 48 slots भर चुके हैं.");
-      return;
-    }
-
+    /* PLAYER OBJECT */
 
     const player = {
       name: name,
@@ -235,16 +248,26 @@ function setupRegistration() {
     };
 
 
-    /* Local save */
+    /* BUTTON */
 
-    players.push(player);
-    savePlayers();
-    renderLeaderboard();
+    const submitButton =
+      form.querySelector("button[type='submit']");
 
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = "Submitting...";
+    }
 
-    /* Google Sheet */
 
     try {
+
+      /*
+       * IMPORTANT:
+       * Apps Script doPost() expects:
+       * name, uid, phone, team, utr
+       *
+       * Not player:{...}
+       */
 
       const response = await fetch(
         CONFIG.api,
@@ -252,17 +275,27 @@ function setupRegistration() {
           method: "POST",
 
           headers: {
-            "Content-Type": "text/plain;charset=utf-8"
+            "Content-Type":
+              "text/plain;charset=utf-8"
           },
 
           body: JSON.stringify({
             action: "register",
-            player: player
+            name: player.name,
+            uid: player.uid,
+            phone: player.phone,
+            team: player.team,
+            utr: player.utr
           })
         }
       );
 
-      const result = await response.json();
+
+      const result =
+        await response.json();
+
+
+      /* GOOGLE API ERROR */
 
       if (
         result &&
@@ -277,32 +310,55 @@ function setupRegistration() {
         return;
       }
 
+
+      /* LOCAL SAVE */
+
+      players.push(player);
+
+      savePlayers();
+
+      renderLeaderboard();
+
+
+      const message =
+        get("regMsg");
+
+      if (message) {
+
+        message.textContent =
+          "Registration successful! Admin approval का इंतजार करें.";
+
+      }
+
+
+      alert(
+        "Registration successful!"
+      );
+
+
+      form.reset();
+
+
     } catch (error) {
 
       console.log(
-        "Google registration error:",
+        "Registration error:",
         error
       );
 
-      /*
-        Local registration already saved.
-        इसलिए user का data खोएगा नहीं.
-      */
+      alert(
+        "Registration failed. Internet और Google API check करें."
+      );
+
+    } finally {
+
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent =
+          "Submit Registration";
+      }
+
     }
-
-
-    const message = get("regMsg");
-
-    if (message) {
-      message.textContent =
-        "Registration successful! Admin approval का इंतजार करें.";
-    }
-
-    alert(
-      "Registration successful!"
-    );
-
-    form.reset();
 
   });
 }
@@ -314,42 +370,49 @@ function setupRegistration() {
 
 function renderLeaderboard() {
 
-  const board = get("board");
+  /*
+   * HTML में ID:
+   * leaderboardList
+   */
+
+  const board =
+    get("leaderboardList");
 
   if (!board) {
     return;
   }
 
 
-  const approved = players
-    .filter(function(player) {
+  const approved =
+    players
+      .filter(function(player) {
 
-      return String(
-        player.status || ""
-      ).toLowerCase() === "approved";
+        return String(
+          player.status || ""
+        ).toLowerCase() === "approved";
 
-    })
-    .sort(function(a, b) {
+      })
+      .sort(function(a, b) {
 
-      return (
-        Number(b.points || 0) -
-        Number(a.points || 0)
-      );
+        return (
+          Number(b.points || 0) -
+          Number(a.points || 0)
+        );
 
-    });
+      });
 
 
   if (approved.length === 0) {
 
     board.innerHTML =
-      '<p>No approved players yet.</p>';
+      "<p>No approved players yet.</p>";
 
     return;
   }
 
 
-  board.innerHTML = approved
-    .map(function(player, index) {
+  board.innerHTML =
+    approved.map(function(player, index) {
 
       return `
         <div class="panel">
@@ -377,8 +440,7 @@ function renderLeaderboard() {
         </div>
       `;
 
-    })
-    .join("");
+    }).join("");
 }
 
 
@@ -395,6 +457,7 @@ function login() {
     return;
   }
 
+
   const password =
     passwordInput.value.trim();
 
@@ -406,7 +469,9 @@ function login() {
 
     adminLogged = true;
 
-    alert("Admin Login Successful!");
+    alert(
+      "Admin Login Successful!"
+    );
 
     passwordInput.value = "";
 
@@ -414,7 +479,9 @@ function login() {
 
   } else {
 
-    alert("Wrong Admin Password.");
+    alert(
+      "Wrong Admin Password."
+    );
 
     passwordInput.value = "";
   }
@@ -427,7 +494,12 @@ function login() {
 
 function renderAdmin() {
 
-  const area = get("adminArea");
+  const loginArea =
+    get("adminLoginArea");
+
+  const area =
+    get("adminArea");
+
 
   if (!area) {
     return;
@@ -438,22 +510,33 @@ function renderAdmin() {
 
     area.hidden = true;
 
+    if (loginArea) {
+      loginArea.hidden = false;
+    }
+
     return;
   }
 
 
   area.hidden = false;
 
+  if (loginArea) {
+    loginArea.hidden = true;
+  }
 
-  /* Room fields */
+
+  /* LOAD MATCH */
 
   loadMatchInfo();
 
 
-  /* Players */
+  /* =====================================
+     PLAYERS
+     ===================================== */
 
   const playersBox =
     get("players");
+
 
   if (playersBox) {
 
@@ -470,7 +553,9 @@ function renderAdmin() {
           return `
             <div class="panel">
 
-              <b>${esc(player.name)}</b>
+              <b>
+                ${esc(player.name)}
+              </b>
 
               <p>
                 UID:
@@ -489,7 +574,9 @@ function renderAdmin() {
 
               <p>
                 Status:
-                <b>${esc(player.status)}</b>
+                <b>
+                  ${esc(player.status)}
+                </b>
               </p>
 
               <button
@@ -510,10 +597,13 @@ function renderAdmin() {
   }
 
 
-  /* Scores */
+  /* =====================================
+     SCORES
+     ===================================== */
 
   const scoresBox =
     get("scores");
+
 
   if (scoresBox) {
 
@@ -530,7 +620,9 @@ function renderAdmin() {
           return `
             <div class="panel">
 
-              <b>${esc(player.name)}</b>
+              <b>
+                ${esc(player.name)}
+              </b>
 
               <input
                 id="kills_${index}"
@@ -573,16 +665,22 @@ function approvePlayer(index) {
     return;
   }
 
+
   if (!players[index]) {
     return;
   }
 
-  players[index].status = "Approved";
+
+  players[index].status =
+    "Approved";
+
 
   savePlayers();
 
   renderAdmin();
+
   renderLeaderboard();
+
 
   alert(
     players[index].name +
@@ -602,6 +700,7 @@ function deletePlayer(index) {
     return;
   }
 
+
   if (!players[index]) {
     return;
   }
@@ -611,14 +710,12 @@ function deletePlayer(index) {
     players[index].name;
 
 
-  const confirmDelete =
-    confirm(
+  if (
+    !confirm(
       name +
       " को delete करना है?"
-    );
-
-
-  if (!confirmDelete) {
+    )
+  ) {
     return;
   }
 
@@ -628,9 +725,13 @@ function deletePlayer(index) {
   savePlayers();
 
   renderAdmin();
+
   renderLeaderboard();
 
-  alert("Player deleted.");
+
+  alert(
+    "Player deleted."
+  );
 }
 
 
@@ -645,6 +746,7 @@ function saveScore(index) {
     return;
   }
 
+
   if (!players[index]) {
     return;
   }
@@ -658,14 +760,19 @@ function saveScore(index) {
 
 
   const kills =
-    Number(killsInput?.value || 0);
+    Number(
+      killsInput?.value || 0
+    );
 
   const points =
-    Number(pointsInput?.value || 0);
+    Number(
+      pointsInput?.value || 0
+    );
 
 
   players[index].kills =
     Math.max(0, kills);
+
 
   players[index].points =
     Math.max(0, points);
@@ -674,49 +781,66 @@ function saveScore(index) {
   savePlayers();
 
   renderAdmin();
+
   renderLeaderboard();
 
-  alert("Score saved successfully.");
+
+  alert(
+    "Score saved successfully."
+  );
 }
 
 
 /* =========================================
-   MATCH INFO
+   MATCH INFO - LOAD
    ========================================= */
 
 function loadMatchInfo() {
 
+  let info = {};
+
   try {
 
-    const info =
+    info =
       JSON.parse(
-        localStorage.getItem(MATCH_KEY) ||
-        "{}"
+        localStorage.getItem(
+          MATCH_KEY
+        ) || "{}"
       );
-
-
-    if (get("roomId")) {
-      get("roomId").value =
-        info.roomId || "";
-    }
-
-    if (get("roomPassword")) {
-      get("roomPassword").value =
-        info.roomPassword || "";
-    }
-
-    if (get("announcement")) {
-      get("announcement").value =
-        info.announcement || "";
-    }
-
 
   } catch (error) {
 
-    console.log(
-      "Match info error:",
-      error
-    );
+    info = {};
+  }
+
+
+  if (get("roomId")) {
+
+    get("roomId").value =
+      info.roomId || "";
+
+  }
+
+
+  if (get("roomPassword")) {
+
+    get("roomPassword").value =
+      info.roomPassword || "";
+
+  }
+
+
+  /*
+   * HTML में ID:
+   * matchMessage
+   */
+
+  if (get("matchMessage")) {
+
+    get("matchMessage").value =
+      info.announcement ||
+      "Room खुल गया है! सभी players समय पर join करें.";
+
   }
 
 
@@ -725,13 +849,17 @@ function loadMatchInfo() {
 
 
 /* =========================================
-   SAVE ADMIN / MATCH INFO
+   SAVE MATCH INFO
    ========================================= */
 
 function saveAdmin() {
 
   if (!adminLogged) {
-    alert("पहले Admin Login करो.");
+
+    alert(
+      "पहले Admin Login करो."
+    );
+
     return;
   }
 
@@ -739,17 +867,31 @@ function saveAdmin() {
   const roomId =
     get("roomId")?.value.trim() || "";
 
+
   const roomPassword =
     get("roomPassword")?.value.trim() || "";
 
+
+  /*
+   * HTML में सही ID:
+   * matchMessage
+   */
+
   const announcement =
-    get("announcement")?.value.trim() || "";
+    get("matchMessage")
+      ?.value.trim() || "";
 
 
   const match = {
+
     roomId: roomId,
-    roomPassword: roomPassword,
-    announcement: announcement
+
+    roomPassword:
+      roomPassword,
+
+    announcement:
+      announcement
+
   };
 
 
@@ -760,6 +902,7 @@ function saveAdmin() {
 
 
   renderMatchInfo();
+
 
   alert(
     "Match information saved successfully."
@@ -775,16 +918,64 @@ function renderMatchInfo() {
 
   let info = {};
 
+
   try {
 
     info =
       JSON.parse(
-        localStorage.getItem(MATCH_KEY) ||
-        "{}"
+        localStorage.getItem(
+          MATCH_KEY
+        ) || "{}"
       );
 
-  } catch {
+  } catch (error) {
+
     info = {};
+  }
+
+
+  /*
+   * HTML में:
+   * showRoomId
+   * showRoomPassword
+   */
+
+  const roomId =
+    get("showRoomId");
+
+
+  const roomPassword =
+    get("showRoomPassword");
+
+
+  if (roomId) {
+
+    roomId.textContent =
+      info.roomId ||
+      "Room ID अभी नहीं आया";
+
+  }
+
+
+  if (roomPassword) {
+
+    roomPassword.textContent =
+      info.roomPassword ||
+      "Password अभी नहीं आया";
+
+  }
+
+
+  const message =
+    get("showMatchMessage");
+
+
+  if (message) {
+
+    message.textContent =
+      info.announcement ||
+      "Room खुलने का इंतजार करें.";
+
   }
 
 
@@ -792,68 +983,112 @@ function renderMatchInfo() {
     get("roomInfo");
 
 
-  const roomId =
-    get("homeRoomId");
+  /*
+   * Room details हमेशा दिखाई देंगे
+   * लेकिन जानकारी नहीं होने पर
+   * default message दिखेगा.
+   */
 
-  const roomPassword =
-    get("homeRoomPassword");
-
-
-  if (
-    roomBox &&
-    info.roomId &&
-    info.roomPassword
-  ) {
+  if (roomBox) {
 
     roomBox.hidden = false;
 
-  } else if (roomBox) {
-
-    roomBox.hidden = true;
-  }
-
-
-  if (roomId) {
-
-    roomId.textContent =
-      info.roomId || "-";
-  }
-
-
-  if (roomPassword) {
-
-    roomPassword.textContent =
-      info.roomPassword || "-";
-  }
-
-
-  const notice =
-    get("notice");
-
-
-  if (notice) {
-
-    notice.textContent =
-      info.announcement || "";
   }
 }
 
 
 /* =========================================
-   INITIALIZE
+   LOGOUT
+   ========================================= */
+
+function logout() {
+
+  adminLogged = false;
+
+  renderAdmin();
+
+  show("home");
+
+  alert(
+    "Admin Logout Successful."
+  );
+}
+
+
+/* =========================================
+   BUTTON EVENTS
    ========================================= */
 
 document.addEventListener(
   "DOMContentLoaded",
   function() {
 
+    /* Local data */
+
     loadPlayersLocal();
+
+
+    /* Registration */
 
     setupRegistration();
 
+
+    /* Match */
+
     loadMatchInfo();
 
+
+    /* Leaderboard */
+
     renderLeaderboard();
+
+
+    /* Admin Login */
+
+    const loginButton =
+      get("adminLoginBtn");
+
+    if (loginButton) {
+
+      loginButton.addEventListener(
+        "click",
+        login
+      );
+
+    }
+
+
+    /* Save Match */
+
+    const saveMatchButton =
+      get("saveMatchBtn");
+
+    if (saveMatchButton) {
+
+      saveMatchButton.addEventListener(
+        "click",
+        saveAdmin
+      );
+
+    }
+
+
+    /* Logout */
+
+    const logoutButton =
+      get("adminLogoutBtn");
+
+    if (logoutButton) {
+
+      logoutButton.addEventListener(
+        "click",
+        logout
+      );
+
+    }
+
+
+    /* Google Sheet */
 
     loadPlayersFromGoogle();
 
@@ -865,11 +1100,17 @@ document.addEventListener(
    GLOBAL FUNCTIONS
    ========================================= */
 
-window.show = show;
+window.show =
+  show;
 
-window.login = login;
+window.login =
+  login;
 
-window.saveAdmin = saveAdmin;
+window.saveAdmin =
+  saveAdmin;
+
+window.logout =
+  logout;
 
 window.approvePlayer =
   approvePlayer;
